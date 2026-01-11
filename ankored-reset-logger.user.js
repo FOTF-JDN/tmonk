@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ankored Reset Requirement Logger
 // @namespace    fotf
-// @version      0.1
+// @version      0.2
 // @description  Logs Ankored "Reset Requirement" review submissions to Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js

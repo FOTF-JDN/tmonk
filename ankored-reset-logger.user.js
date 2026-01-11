@@ -9,6 +9,8 @@
 
 (() => {
   "use strict";
+  
+  console.log("[Ankored Logger] Script loaded on:", location.href);
 
   const WEB_APP_URL = "https://script.google.com/a/macros/focusonthefield.com/s/AKfycbxmwB5U0H84mnne95a46A7vDyvk6TtKFI8qTt5K0KYW5av0KfC_Zs2ud6SR67U7J1fh/exec";
   const SHARED_SECRET = "casv_rejectons_2026_alskejrlealkjereres";

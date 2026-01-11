@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ankored Requirement Logger (Reset + Approve)
 // @namespace    fotf
-// @version      0.4
+// @version      0.5
 // @description  Logs Ankored "Reset Requirement" to Rejections tab and "Approve Requirement" to Approved tab in Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
@@ -73,23 +73,59 @@
     return headerCand?.txt || candidates[0]?.txt || "";
   };
 
-  const getReviewDecisionText = () => {
-    const label = findLabelEl("Review Decision:");
+const getReviewDecisionText = () => {
+    // Match label like "Review Decision:", "Review Decision: *", etc.
+    const label = Array.from(document.querySelectorAll("body *"))
+      .find(el =>
+        el.childElementCount === 0 &&
+        norm(el.textContent).toLowerCase().startsWith("review decision")
+      );
+
     if (!label) return "";
 
-    const container = label.closest("div") || label.parentElement;
-    if (!container) return "";
+    const scope = label.closest("div") || label.parentElement || document.body;
 
-    // Native select
-    const sel = container.querySelector("select");
-    if (sel) {
-      const opt = sel.selectedOptions && sel.selectedOptions[0];
-      return norm(opt ? opt.textContent : sel.value);
+    // Look for common custom-select controls near the label
+    const candidates = [
+      ...scope.querySelectorAll('[role="combobox"]'),
+      ...scope.querySelectorAll('[aria-haspopup="listbox"]'),
+      ...scope.querySelectorAll("select"),
+      ...scope.querySelectorAll("input"),
+      ...scope.querySelectorAll("button"),
+    ];
+
+    for (const el of candidates) {
+      if (el === label) continue;
+
+      // Native select
+      if (el.tagName === "SELECT") {
+        const opt = el.selectedOptions && el.selectedOptions[0];
+        return norm(opt ? opt.textContent : el.value);
+      }
+
+      // Inputs sometimes hold the value
+      if (el.tagName === "INPUT" && el.value) {
+        return norm(el.value);
+      }
+
+      // ARIA attributes often contain the selected value
+      const ariaValueText = el.getAttribute("aria-valuetext");
+      if (ariaValueText) return norm(ariaValueText);
+
+      const ariaLabel = el.getAttribute("aria-label");
+      if (ariaLabel && /approve|reset|requirement/i.test(ariaLabel)) return norm(ariaLabel);
+
+      // Visible text (often the selected option is rendered in a button/div)
+      const txt = norm(el.textContent);
+      if (txt && txt !== norm(label.textContent)) return txt;
     }
 
-    // Heuristic fallback
-    return norm(norm(container.textContent).replace(norm(label.textContent), ""));
+    // Last resort: remove label from scope text and return remainder
+    const containerText = norm(scope.textContent);
+    const labelText = norm(label.textContent);
+    return norm(containerText.replace(labelText, ""));
   };
+
 
   const getReasonForRejection = () => {
     const label = findLabelEl("Reason for Rejection:");

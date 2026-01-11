@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         Ankored Requirement Logger (Reset + Approve)
 // @namespace    fotf
-// @version      0.5
+// @version      0.6
 // @description  Logs Ankored "Reset Requirement" to Rejections tab and "Approve Requirement" to Approved tab in Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
 // @updateURL    https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      script.google.com
+
 // ==/UserScript==
 
 (() => {
@@ -143,30 +145,29 @@ const getReviewDecisionText = () => {
     return "";
   };
 
-  const send = (payload) => {
-    try {
-      const body = JSON.stringify(payload);
+const send = (payload) => {
+  try {
+    const body = JSON.stringify(payload);
 
-      // Best for page navigation: doesn't block, survives unload
-      if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: "application/json" });
-        const ok = navigator.sendBeacon(WEB_APP_URL, blob);
-        console.log("[Ankored Logger] sendBeacon fired:", ok ? "OK" : "FAILED");
-        return;
-      }
-
-      fetch(WEB_APP_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-        keepalive: true,
-      })
-        .then(() => console.log("[Ankored Logger] fetch fired: OK"))
-        .catch((err) => console.warn("[Ankored Logger] fetch failed:", err));
-    } catch (e) {
-      console.error("[Ankored Logger] send failed", e);
-    }
-  };
+    // Use Tampermonkey's request layer (bypasses page CSP/CORS)
+    GM_xmlhttpRequest({
+      method: "POST",
+      url: WEB_APP_URL,
+      data: body,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      onload: (resp) => {
+        console.log("[Ankored Logger] POST response:", resp.status, resp.responseText);
+      },
+      onerror: (err) => {
+        console.error("[Ankored Logger] POST error:", err);
+      },
+    });
+  } catch (e) {
+    console.error("[Ankored Logger] send failed", e);
+  }
+};
 
   const buildBasePayload = (decisionRaw) => ({
     secret: SHARED_SECRET,

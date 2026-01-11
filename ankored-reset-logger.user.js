@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ankored Requirement Logger (Reset + Approve)
 // @namespace    fotf
-// @version      0.62
+// @version      0.63
 // @description  Logs Ankored "Reset Requirement" to Rejections tab and "Approve Requirement" to Approved tab in Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
@@ -131,21 +131,56 @@ const getReviewDecisionText = () => {
   };
 
 
-  const getReasonForRejection = () => {
-  const label = findLabelEl("Review Reason:");
-    if (!label) return "";
+const getReasonForRejection = () => {
+  // Try likely label variants in order (most specific first)
+  const labelsToTry = [
+    "Reason for Rejection:",   // handles when colon exists (we'll also match with *)
+    "Reason for Rejection: *", // in case it's literally rendered this way
+    "Review Reason:"           // fallback
+  ];
 
-    const container = label.closest("div") || label.parentElement;
-    if (!container) return "";
+  // Helper: find a label element by "startsWith" (handles trailing * and spacing)
+  const findLabelStartsWith = (prefix) => {
+    const p = prefix.toLowerCase().replace(/\*/g, "").trim();
+    return Array.from(document.querySelectorAll("body *"))
+      .find(el =>
+        el.childElementCount === 0 &&
+        norm(el.textContent).toLowerCase().replace(/\*/g, "").trim().startsWith(p)
+      ) || null;
+  };
 
-    const ta = container.querySelector("textarea");
+  const readValueNear = (labelEl) => {
+    if (!labelEl) return "";
+
+    const scope = labelEl.closest("div") || labelEl.parentElement;
+    if (!scope) return "";
+
+    // textarea/input first
+    const ta = scope.querySelector("textarea");
     if (ta) return norm(ta.value);
 
-    const inp = container.querySelector("input");
+    const inp = scope.querySelector("input");
     if (inp) return norm(inp.value);
+
+    // custom textbox / contenteditable
+    const roleTb = scope.querySelector('[role="textbox"]');
+    if (roleTb) return norm(roleTb.textContent);
+
+    const ce = scope.querySelector('[contenteditable="true"]');
+    if (ce) return norm(ce.textContent);
 
     return "";
   };
+
+  for (const labelText of labelsToTry) {
+    const labelEl = findLabelStartsWith(labelText);
+    const val = readValueNear(labelEl);
+    if (val) return val;
+  }
+
+  return "";
+};
+
 
 const send = (payload) => {
   try {

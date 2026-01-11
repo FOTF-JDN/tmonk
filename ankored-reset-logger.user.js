@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ankored Requirement Logger (Reset + Approve)
 // @namespace    fotf
-// @version      0.61
+// @version      0.62
 // @description  Logs Ankored "Reset Requirement" to Rejections tab and "Approve Requirement" to Approved tab in Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
@@ -132,7 +132,7 @@ const getReviewDecisionText = () => {
 
 
   const getReasonForRejection = () => {
-    const label = findLabelEl("Reason for Rejection:");
+  const label = findLabelEl("Review Reason:");
     if (!label) return "";
 
     const container = label.closest("div") || label.parentElement;

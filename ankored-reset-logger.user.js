@@ -1,21 +1,21 @@
 // ==UserScript==
-// @name         Ankored Reset Requirement Logger
+// @name         Ankored Requirement Logger (Reset + Approve)
 // @namespace    fotf
-// @version      0.2
-// @description  Logs Ankored "Reset Requirement" review submissions to Google Sheets
+// @version      0.3
+// @description  Logs Ankored "Reset Requirement" to Rejections tab and "Approve Requirement" to Approved tab in Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
 // @updateURL    https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
-
 // @grant        none
 // ==/UserScript==
 
 (() => {
   "use strict";
-  
+
   console.log("[Ankored Logger] Script loaded on:", location.href);
 
-  const WEB_APP_URL = "https://script.google.com/a/macros/focusonthefield.com/s/AKfycbxmwB5U0H84mnne95a46A7vDyvk6TtKFI8qTt5K0KYW5av0KfC_Zs2ud6SR67U7J1fh/exec";
+  const WEB_APP_URL =
+    "https://script.google.com/a/macros/focusonthefield.com/s/AKfycbxmwB5U0H84mnne95a46A7vDyvk6TtKFI8qTt5K0KYW5av0KfC_Zs2ud6SR67U7J1fh/exec";
   const SHARED_SECRET = "casv_rejectons_2026_alskejrlealkjereres";
 
   // --- Small utilities ---
@@ -23,26 +23,33 @@
 
   const findButtonByText = (text) => {
     const target = text.toLowerCase();
-    return Array.from(document.querySelectorAll("button"))
-      .find(b => norm(b.textContent).toLowerCase() === target) || null;
+    return (
+      Array.from(document.querySelectorAll("button")).find(
+        (b) => norm(b.textContent).toLowerCase() === target
+      ) || null
+    );
   };
 
   const findLabelEl = (labelText) => {
     const t = labelText.toLowerCase();
-    return Array.from(document.querySelectorAll("body *"))
-      .find(el => el.childElementCount === 0 && norm(el.textContent).toLowerCase() === t) || null;
+    return (
+      Array.from(document.querySelectorAll("body *")).find(
+        (el) =>
+          el.childElementCount === 0 && norm(el.textContent).toLowerCase() === t
+      ) || null
+    );
   };
 
-  // Generic "value next to label" extractor — we’ll tighten if Ankored DOM differs
+  // Generic "value next to label" extractor
   const valueAfterLabel = (labelText) => {
     const label = findLabelEl(labelText);
     if (!label) return "";
 
-    // try adjacent sibling
+    // adjacent sibling
     const sib = label.nextElementSibling;
     if (sib && norm(sib.textContent)) return norm(sib.textContent);
 
-    // try within same parent container (common in definition lists)
+    // same parent container fallback
     const parent = label.parentElement;
     if (parent) {
       const full = norm(parent.textContent);
@@ -53,40 +60,38 @@
   };
 
   const getReviewerInitials = () => {
-    // From your screenshot: initials like "JN" in top right inside a circle.
-    // We’ll look for a small avatar-like element with 2-3 letters.
-    const candidates = Array.from(document.querySelectorAll("header, nav, [role='banner'], body"))
-      .flatMap(root => Array.from(root.querySelectorAll("button, div, span, a")))
-      .map(el => ({ el, txt: norm(el.textContent) }))
-      .filter(x => /^[A-Z]{1,3}$/.test(x.txt));
+    const candidates = Array.from(
+      document.querySelectorAll("header, nav, [role='banner'], body")
+    )
+      .flatMap((root) => Array.from(root.querySelectorAll("button, div, span, a")))
+      .map((el) => ({ el, txt: norm(el.textContent) }))
+      .filter((x) => /^[A-Z]{1,3}$/.test(x.txt));
 
-    // Prefer ones near top-right by looking for elements inside header/nav first
-    const headerCand = candidates.find(x => x.el.closest("header, nav, [role='banner']"));
-    return (headerCand?.txt) || (candidates[0]?.txt) || "";
+    const headerCand = candidates.find((x) =>
+      x.el.closest("header, nav, [role='banner']")
+    );
+    return headerCand?.txt || candidates[0]?.txt || "";
   };
 
   const getReviewDecisionText = () => {
-    // Try to find "Review Decision:" area and read the selected value
     const label = findLabelEl("Review Decision:");
     if (!label) return "";
 
     const container = label.closest("div") || label.parentElement;
     if (!container) return "";
 
-    // If it's a native select:
+    // Native select
     const sel = container.querySelector("select");
     if (sel) {
       const opt = sel.selectedOptions && sel.selectedOptions[0];
       return norm(opt ? opt.textContent : sel.value);
     }
 
-    // Otherwise, heuristically remove the label text and return remainder
+    // Heuristic fallback
     return norm(norm(container.textContent).replace(norm(label.textContent), ""));
   };
 
-  const getReasonForReset = () => {
-    // You said "Reason for Rejection" is a text field.
-    // We’ll locate the label "Reason for Rejection:" and read the textarea/input nearby.
+  const getReasonForRejection = () => {
     const label = findLabelEl("Reason for Rejection:");
     if (!label) return "";
 
@@ -109,40 +114,79 @@
       // Best for page navigation: doesn't block, survives unload
       if (navigator.sendBeacon) {
         const blob = new Blob([body], { type: "application/json" });
-        navigator.sendBeacon(WEB_APP_URL, blob);
+        const ok = navigator.sendBeacon(WEB_APP_URL, blob);
+        console.log("[Ankored Logger] sendBeacon fired:", ok ? "OK" : "FAILED");
         return;
       }
 
-      // Fallback
       fetch(WEB_APP_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,
-        keepalive: true
-      }).catch(() => {});
+        keepalive: true,
+      })
+        .then(() => console.log("[Ankored Logger] fetch fired: OK"))
+        .catch((err) => console.warn("[Ankored Logger] fetch failed:", err));
     } catch (e) {
       console.error("[Ankored Logger] send failed", e);
     }
   };
 
-  const onSubmit = () => {
-    const decision = getReviewDecisionText();
-    const isReset = decision.toLowerCase().includes("reset") && decision.toLowerCase().includes("requirement");
-    if (!isReset) return;
+  const buildBasePayload = (decisionRaw) => ({
+    secret: SHARED_SECRET,
+    reviewDecision: decisionRaw, // IMPORTANT: Apps Script routes based on this
+    requirement: valueAfterLabel("Requirement:"),
+    originallyCompleted: valueAfterLabel("Originally Completed:"), // Date Submitted
+    userName: valueAfterLabel("User Name:"),
+    parentName: valueAfterLabel("Parent Name:"),
+    parentEmail: valueAfterLabel("Parent Email:"),
+    pageUrl: location.href,
+  });
 
+  const onSubmit = () => {
+    const decisionRaw = getReviewDecisionText();
+    const decision = (decisionRaw || "").toLowerCase();
+
+    const isReset =
+      decision.includes("reset") && decision.includes("requirement");
+    const isApprove =
+      decision.includes("approve") && decision.includes("requirement");
+
+    if (!isReset && !isApprove) {
+      console.log("[Ankored Logger] Ignored submit; decision =", decisionRaw);
+      return;
+    }
+
+    const reviewer = getReviewerInitials();
+    const basePayload = buildBasePayload(decisionRaw);
+
+    if (isReset) {
+      const payload = {
+        ...basePayload,
+        rejectedBy: reviewer,
+        reasonForReset: getReasonForRejection(),
+      };
+
+      // Log without exposing secret
+      console.log("[Ankored Logger] Sending REJECTION payload:", {
+        ...payload,
+        secret: "***",
+      });
+      send(payload);
+      return;
+    }
+
+    // isApprove
     const payload = {
-      secret: SHARED_SECRET,
-      requirement: valueAfterLabel("Requirement:"),
-      originallyCompleted: valueAfterLabel("Originally Completed:"),
-      userName: valueAfterLabel("User Name:"),
-      parentName: valueAfterLabel("Parent Name:"),
-      parentEmail: valueAfterLabel("Parent Email:"),
-      rejectedBy: getReviewerInitials(),
-      reasonForReset: getReasonForReset(),
-      pageUrl: location.href
+      ...basePayload,
+      approvedBy: reviewer,
+      notes: "", // reserved for future use
     };
 
-    console.log("[Ankored Logger] Sending payload:", payload);
+    console.log("[Ankored Logger] Sending APPROVAL payload:", {
+      ...payload,
+      secret: "***",
+    });
     send(payload);
   };
 
@@ -155,15 +199,27 @@
 
     btn.addEventListener("click", onSubmit, true);
     console.log("[Ankored Logger] Attached to Submit Review button");
+
+    const reviewer = getReviewerInitials();
+    console.log("[Ankored Logger] Reviewer detected:", reviewer || "(not detected)");
     return true;
   };
 
-  // Lightweight attach loop: tries for up to 15s, then stops
+  // Keep trying longer because Ankored UI may mount after initial load
   const start = () => {
     if (attach()) return;
+
     const t0 = Date.now();
     const timer = setInterval(() => {
-      if (attach() || (Date.now() - t0) > 15000) clearInterval(timer);
+      if (attach()) {
+        clearInterval(timer);
+        return;
+      }
+      // try for up to 60 seconds
+      if (Date.now() - t0 > 60000) {
+        clearInterval(timer);
+        console.warn("[Ankored Logger] Could not find Submit Review button within 60s");
+      }
     }, 500);
   };
 

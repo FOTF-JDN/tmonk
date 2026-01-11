@@ -145,6 +145,7 @@
 
   const onSubmit = () => {
     const decisionRaw = getReviewDecisionText();
+    console.log("[Ankored Logger] decisionRaw =", JSON.stringify(decisionRaw));
     const decision = (decisionRaw || "").toLowerCase();
 
     const isReset =

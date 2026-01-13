@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ankored Requirement Logger (Reset + Approve)
 // @namespace    fotf
-// @version      0.63
+// @version      0.64
 // @description  Logs Ankored "Reset Requirement" to Rejections tab and "Approve Requirement" to Approved tab in Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
@@ -280,6 +280,8 @@ const send = (payload) => {
     return true;
   };
 
+  
+
   // Keep trying longer because Ankored UI may mount after initial load
   const start = () => {
     if (attach()) return;
@@ -299,4 +301,13 @@ const send = (payload) => {
   };
 
   start();
+
+  // Re-attach after tab becomes visible again (sleep / wake / tab switch)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    console.log("[Ankored Logger] Tab visible again — re-attaching");
+    start();
+  }
+});
+
 })();

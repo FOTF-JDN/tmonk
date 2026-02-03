@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Ankored Reset Logger (Dev)
+// @name         Ankored Reset Logger
 // @namespace    fotf
-// @version      0.65
+// @version      0.66
 // @description  Logs Ankored "Reset Requirement" to Rejections tab and "Approve Requirement" to Approved tab in Google Sheets
 // @match        https://app.ankored.com/*
 // @downloadURL  https://fotf-jdn.github.io/tmonk/ankored-reset-logger.user.js
